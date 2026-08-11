@@ -1,0 +1,6 @@
+- Add Pagination (check if server side available, if yes use that)
+- Comparison pages (based on USD value and trend. Also add option to switch currencies. Handle number formatting properly to ensure larger numbers are rendered correctly.)
+- Number formatting (Use Numeral library)
+- Make the search bar server side only if server side pagination is supported, if not, leave it as it is
+- Add a simple line chart showing at the terminal page at the end. This should show prices and orders and update regularly.
+- Replace lightweight charts with Highchart library. Also, for the candlestick charts, add the option to change the time axis, the options should be 5mins, 3min, 15min, 1min

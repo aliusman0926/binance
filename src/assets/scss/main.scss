@@ -1,0 +1,25 @@
+@use './tokens' as *;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: $color-background; font-size: 16px; }
+
+body {
+  background: $color-background;
+  color: $color-text-primary;
+  font-family: $font-family-base;
+  margin: 0;
+  min-width: 320px;
+}
+
+button, input { font: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+.button-text { color: $color-brand; font-size: $font-size-sm; font-weight: $font-weight-medium; padding: $space-2; }
+.button-text:hover { color: $color-brand-hover; }
+
+.sr-only { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); }
+
+.text-positive { color: $color-positive !important; }
+.text-negative { color: $color-negative !important; }
+.text-muted { color: $color-text-muted !important; }
+.font-mono { font-family: $font-family-mono !important; }
