@@ -42,6 +42,22 @@ export const COMPARISON_LIMIT = 96
 export const COMPARISON_COLORS = ['#e3b409', '#3b82f6']
 export const COMPARISON_DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT']
 
+/*
+ * Order-book resynchronization. Diff-depth frames arrive 10x/s and every one of them
+ * reports an unsynchronized book, so resyncs are timer-driven rather than frame-driven.
+ * /api/v3/depth?limit=100 costs request weight 5 against a 6000/min per-IP budget, so a
+ * retry loop with no delay and no ceiling exhausts the budget in about a minute and earns
+ * a 429, then a 418 IP ban. The ceiling is what stops the loop re-arming for good.
+ *
+ * The delay is not only rate-limit protection: the usual failure is a REST snapshot that
+ * lags the buffered stream, which heals only once the snapshot's lastUpdateId advances
+ * past the buffer — that takes wall-clock time, so an immediate retry cannot fix it.
+ */
+export const DEPTH_RESYNC_MAX_ATTEMPTS = 6
+export const DEPTH_RESYNC_BASE_DELAY_MS = 1000
+export const DEPTH_RESYNC_MAX_DELAY_MS = 30000
+export const DEPTH_RESYNC_JITTER_MS = 250
+
 export const CHART_THEME = {
   background: '#14151a',
   text: '#848e9c',

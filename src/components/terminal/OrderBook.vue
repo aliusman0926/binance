@@ -1,7 +1,7 @@
 <template>
   <base-panel title="Order book" flush>
     <base-state v-if="isLoading" type="loading" message="Synchronizing order book…" />
-    <base-state v-else-if="error" type="error" :message="error" />
+    <base-state v-else-if="error" type="error" :message="error"><template #actions><button class="button-text" type="button" @click="$emit('retry')">Try again</button></template></base-state>
     <div v-else class="order-book">
       <div class="order-book__columns"><span>Price</span><span>Quantity</span></div>
       <div class="order-book__levels order-book__levels--asks"><div v-for="level in reversedAsks" :key="`ask-${level.price}`" class="order-book__level order-book__level--ask" :style="depthStyle(level.quantity, asks)"><span class="font-mono">{{ formatPrice(level.price) }}</span><span class="font-mono">{{ formatNumber(level.quantity) }}</span></div></div>
