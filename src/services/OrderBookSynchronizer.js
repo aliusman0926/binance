@@ -3,8 +3,9 @@
  * until a snapshot is applied, and a sequence gap explicitly reports desync.
  */
 export default class OrderBookSynchronizer {
-  constructor (depthLimit = 20) {
+  constructor (depthLimit = 20, maxBufferedEvents = 600) {
     this.depthLimit = depthLimit
+    this.maxBufferedEvents = maxBufferedEvents
     this.bids = new Map()
     this.asks = new Map()
     this.lastUpdateId = null
@@ -15,6 +16,15 @@ export default class OrderBookSynchronizer {
   bufferUpdate (event) {
     if (!this.isSynchronized) {
       this.buffer.push(event)
+      /*
+       * Backstop for a desync that outlives the consumer's retry ceiling: frames keep
+       * arriving 10x/s for as long as the stream is subscribed. Dropping the oldest events
+       * can only make the next applySnapshot report a gap — which is the truth — and can
+       * never merge a stale event into a live book.
+       */
+      if (this.buffer.length > this.maxBufferedEvents) {
+        this.buffer = this.buffer.slice(-this.maxBufferedEvents)
+      }
       return true
     }
     return this.applyUpdate(event)
@@ -25,9 +35,16 @@ export default class OrderBookSynchronizer {
     this.asks = this.toLevelMap(snapshot.asks)
     this.lastUpdateId = snapshot.lastUpdateId
 
+    /*
+     * Events at or below the snapshot are already reflected in it and can never be needed
+     * again. Narrowing the buffer here rather than only on the success path below is what
+     * keeps a long desync from growing it without bound across repeated attempts.
+     */
     const pendingEvents = this.buffer.filter(event => event.finalUpdateId > this.lastUpdateId)
+    this.buffer = pendingEvents
+
     const initialEvent = pendingEvents[0]
-    if (initialEvent && (initialEvent.firstUpdateId > this.lastUpdateId + 1 || initialEvent.finalUpdateId < this.lastUpdateId + 1)) {
+    if (initialEvent && initialEvent.firstUpdateId > this.lastUpdateId + 1) {
       return false
     }
 

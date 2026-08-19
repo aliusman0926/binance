@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="c-markets-view">
     <base-section-header eyebrow="Market overview" title="Markets" description="Discover live cryptocurrency market data.">
       <template #actions><market-search v-model="searchQuery" /></template>
     </base-section-header>
@@ -33,12 +33,15 @@ import { subscribeMarketTickers } from '@/services/liveStreams'
 export default {
   name: 'MarketsView',
   components: { BaseSectionHeader, MarketLayout, MarketPagination, MarketSearch, MarketTable, WatchlistPanel },
-  data: () => ({ unsubscribeTickers: null }),
+  data: () => ({ unsubscribeTickers: null }), //use undefined instead of null
   computed: {
     ...mapState('markets', ['tickers', 'isLoading', 'error', 'pageSize']),
     ...mapGetters('markets', ['currentPage']),
     searchQuery: {
-      get () { return this.$store.state.markets.searchQuery },
+      get () { 
+        const self = this;
+        return self.$store.state.markets.searchQuery 
+      }, // follow self format
       set (query) { this.$store.commit('markets/setSearchQuery', query) }
     },
     totalMarkets () { return this.$store.getters['markets/filteredSymbols'].length },

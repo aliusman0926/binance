@@ -6,7 +6,7 @@ import axios from 'axios'
  * axios instance because api/client.js is pinned to the Binance base URL.
  */
 const client = axios.create({
-  baseURL: process.env.VUE_APP_EXCHANGE_RATE_URL || 'https://open.er-api.com/v6',
+  baseURL: 'https://open.er-api.com/v6',
   timeout: 10000
 })
 
