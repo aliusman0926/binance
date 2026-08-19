@@ -7,6 +7,16 @@ export function subscribeMarketTickers (onTickers) {
   })
 }
 
+/**
+ * Single-symbol counterpart to subscribeMarketTickers. The payload is one element of the
+ * !ticker@arr array, so it shares normalizeStreamTicker — and the store shape — with it.
+ */
+export function subscribeTicker ({ symbol, onTicker }) {
+  return binanceWebSocket.subscribe(`${symbol.toLowerCase()}@ticker`, event => {
+    onTicker(normalizeStreamTicker(event))
+  })
+}
+
 export function subscribeKlines ({ symbol, interval = '1m', onKline }) {
   return binanceWebSocket.subscribe(`${symbol.toLowerCase()}@kline_${interval}`, event => {
     onKline(normalizeStreamKline(event))
