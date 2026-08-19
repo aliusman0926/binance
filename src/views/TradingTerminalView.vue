@@ -40,7 +40,7 @@ import SymbolHeader from '@/components/terminal/SymbolHeader.vue'
 import OrderBookSynchronizer from '@/services/OrderBookSynchronizer'
 import TerminalLayout from '@/layouts/TerminalLayout.vue'
 import { normalizeDepthSnapshot } from '@/services/marketNormalizers'
-import { subscribeDepth, subscribeKlines, subscribeTrades } from '@/services/liveStreams'
+import { subscribeDepth, subscribeKlines, subscribeTicker, subscribeTrades } from '@/services/liveStreams'
 import { DEPTH_RESYNC_BASE_DELAY_MS, DEPTH_RESYNC_JITTER_MS, DEPTH_RESYNC_MAX_ATTEMPTS, DEPTH_RESYNC_MAX_DELAY_MS } from '@/utils/constants'
 
 export default {
@@ -50,6 +50,7 @@ export default {
   data: () => ({
     unsubscribeDepth: null,
     unsubscribeKlines: null,
+    unsubscribeTicker: null,
     unsubscribeTrades: null,
     depthResyncAttempts: 0,
     depthResyncTimer: null,
@@ -76,7 +77,7 @@ export default {
     this.clearSubscriptions()
   },
   methods: {
-    ...mapActions('markets', { initializeMarkets: 'initialize' }),
+    ...mapActions('markets', { initializeMarkets: 'initialize', updateTickers: 'updateTickers' }),
     ...mapActions('terminal', ['initializeChart', 'loadTrades']),
     async loadTerminal () {
       const requestId = ++this.loadRequest
@@ -88,6 +89,7 @@ export default {
       this.isInvalidSymbol = !this.market
       if (this.isInvalidSymbol) return
 
+      this.startTickerSubscription()
       this.startDepthSynchronization(requestId)
       this.loadRecentTrades(requestId)
       await this.loadChartForInterval(this.interval)
@@ -123,6 +125,21 @@ export default {
       if (interval === this.interval) return
       this.$store.commit('terminal/setChartInterval', interval)
       await this.loadChartForInterval(interval)
+    },
+    /**
+     * markets.tickers is otherwise only filled by markets/initialize (one REST snapshot) and
+     * by the !ticker@arr stream, which lives and dies with the Markets and Compare views. On
+     * this route neither keeps running, so the header froze at its snapshot while the candles
+     * ticked. A per-symbol @ticker stream writes into the same store slot, so Markets stays
+     * warm on the way back and no component needs to know where the numbers came from.
+     */
+    startTickerSubscription () {
+      this.unsubscribeTicker = subscribeTicker({
+        symbol: this.symbol,
+        // Wrapped in an array: updateTickers is the shared array-shaped merge path, and
+        // mergeTickers replaces the map by identity so a single-key merge still reacts.
+        onTicker: ticker => this.updateTickers([ticker])
+      })
     },
     startDepthSynchronization (requestId) {
       this.synchronizer = new OrderBookSynchronizer()
@@ -253,11 +270,12 @@ export default {
     },
     clearSubscriptions () {
       this.cancelDepthResync()
-      ;[this.unsubscribeDepth, this.unsubscribeKlines, this.unsubscribeTrades].forEach(unsubscribe => {
+      ;[this.unsubscribeDepth, this.unsubscribeKlines, this.unsubscribeTicker, this.unsubscribeTrades].forEach(unsubscribe => {
         if (unsubscribe) unsubscribe()
       })
       this.unsubscribeDepth = null
       this.unsubscribeKlines = null
+      this.unsubscribeTicker = null
       this.unsubscribeTrades = null
     },
     resetPanelState () {
