@@ -1,5 +1,5 @@
-import { getDepthSnapshot, getKlines, getRecentTrades } from '@/api/binance'
-import { normalizeDepthSnapshot, normalizeKline, normalizeTrade } from '@/services/marketNormalizers'
+import { getKlines, getRecentTrades } from '@/api/binance'
+import { normalizeKline, normalizeTrade } from '@/services/marketNormalizers'
 import { DEFAULT_KLINE_INTERVAL, PRICE_VOLUME_BUCKET_MS, PRICE_VOLUME_MAX_POINTS } from '@/utils/constants'
 
 /**
@@ -56,14 +56,7 @@ export default {
         : [...state.candles, candle]
     },
     setLoading (state, value) { state.isLoading = value },
-    setError (state, error) { state.error = error },
-    reset (state) {
-      state.candles = []
-      state.orderBook = { bids: [], asks: [], lastUpdateId: null }
-      state.trades = []
-      state.priceVolumeSeries = []
-      state.error = null
-    }
+    setError (state, error) { state.error = error }
   },
   actions: {
     async initializeChart ({ state, commit, dispatch }, { symbol, interval = state.interval }) {
@@ -83,10 +76,9 @@ export default {
       const klines = await getKlines(symbol, interval)
       if (state.symbol === symbol) commit('setCandles', klines.map(normalizeKline))
     },
-    async loadOrderBook ({ commit }, symbol) {
-      const snapshot = await getDepthSnapshot(symbol)
-      commit('setOrderBook', normalizeDepthSnapshot(snapshot))
-    },
+    // The order book is owned by TradingTerminalView: a REST snapshot alone is not enough,
+    // it has to be reconciled against the buffered depth diffs, so the fetch lives beside
+    // the socket subscription rather than here.
     async loadTrades ({ state, commit }, symbol) {
       const trades = await getRecentTrades(symbol)
       if (state.symbol !== symbol) return
@@ -96,24 +88,6 @@ export default {
       const chronologicalTrades = trades.map(normalizeTrade)
       commit('setTrades', [...chronologicalTrades].reverse())
       commit('seedPriceVolumeSeries', chronologicalTrades)
-    },
-    async loadInitialData ({ state, commit, dispatch }, { symbol, interval = state.interval }) {
-      commit('setLoading', true)
-      commit('setError', null)
-      commit('setSymbol', symbol)
-      commit('reset')
-
-      try {
-        await Promise.all([
-          dispatch('loadChart', { symbol, interval }),
-          dispatch('loadOrderBook', symbol),
-          dispatch('loadTrades', symbol)
-        ])
-      } catch (error) {
-        commit('setError', error.message)
-      } finally {
-        commit('setLoading', false)
-      }
     }
   }
 }
