@@ -6,7 +6,14 @@
       description="Put two markets side by side on value and trend."
     >
       <template #actions>
-        <currency-select :value="selectedCurrency" :is-loading="isCurrencyLoading" @input="selectCurrency" />
+        <div class="comparison-view__currency">
+          <currency-select :value="selectedCurrency" :is-loading="isCurrencyLoading" @input="selectCurrency" />
+          <p v-if="currencyError && isRateMissing && !isCurrencyLoading" class="comparison-view__currency-error" role="status">
+            <v-icon small color="error">error_outline</v-icon>
+            <span>{{ currencyError }}</span>
+            <button class="button-text" type="button" @click="reloadRates">Try again</button>
+          </p>
+        </div>
       </template>
     </base-section-header>
 
@@ -51,7 +58,8 @@ import {
   COMPARISON_COLORS,
   COMPARISON_DEFAULT_SYMBOLS,
   COMPARISON_INTERVAL,
-  COMPARISON_LIMIT
+  COMPARISON_LIMIT,
+  DEFAULT_CURRENCY
 } from '@/utils/constants'
 import { formatCurrency, formatPercent } from '@/utils/formatters'
 
@@ -80,7 +88,14 @@ export default {
   }),
   computed: {
     ...mapState('markets', { isMarketsLoading: 'isLoading', tickers: 'tickers' }),
-    ...mapState('currency', { selectedCurrency: 'selectedCurrency', isCurrencyLoading: 'isLoading' }),
+    ...mapState('currency', {
+      selectedCurrency: 'selectedCurrency',
+      isCurrencyLoading: 'isLoading',
+      currencyError: 'error'
+    }),
+    // The code the figures are really in — differs from selectedCurrency when no rate is available.
+    effectiveCurrency () { return this.$store.getters['currency/effectiveCurrency'] },
+    isRateMissing () { return this.$store.getters['currency/isRateMissing'] },
     symbols () { return this.$store.getters['markets/usdtSymbols'] },
     leftSymbol () { return this.resolveSymbol(this.$route.query.a, COMPARISON_DEFAULT_SYMBOLS[0]) },
     rightSymbol () { return this.resolveSymbol(this.$route.query.b, COMPARISON_DEFAULT_SYMBOLS[1]) },
@@ -92,16 +107,20 @@ export default {
     leftLabel () { return this.leftMarket ? `${this.leftMarket.baseAsset}/${this.leftMarket.quoteAsset}` : this.leftSymbol },
     rightLabel () { return this.rightMarket ? `${this.rightMarket.baseAsset}/${this.rightMarket.quoteAsset}` : this.rightSymbol },
     footnote () {
-      return this.selectedCurrency === 'USD'
+      if (this.isRateMissing) return `Rates unavailable — values shown in ${DEFAULT_CURRENCY}`
+      return this.effectiveCurrency === DEFAULT_CURRENCY
         ? 'Values in USD (1 USDT ≈ 1 USD)'
-        : `Values converted from USD to ${this.selectedCurrency}`
+        : `Values converted from ${DEFAULT_CURRENCY} to ${this.effectiveCurrency}`
     },
     rows () {
       const leftTicker = this.tickers[this.leftSymbol] || null
       const rightTicker = this.tickers[this.rightSymbol] || null
 
-      const asCurrency = value => formatCurrency(this.convert(value), this.selectedCurrency)
-      const asCompactCurrency = value => formatCurrency(this.convert(value), this.selectedCurrency, { compact: true })
+      // effectiveCurrency, not selectedCurrency: convert() falls back to a rate of 1 when the
+      // selected currency has no rate, so stamping the selected code would label USD figures
+      // with a foreign symbol.
+      const asCurrency = value => formatCurrency(this.convert(value), this.effectiveCurrency)
+      const asCompactCurrency = value => formatCurrency(this.convert(value), this.effectiveCurrency, { compact: true })
 
       // higherIsBetter is null where "bigger" carries no verdict — a higher price does not
       // make a market better, so those rows are shown without a winner.
@@ -143,6 +162,7 @@ export default {
     ...mapActions('markets', { initializeMarkets: 'initialize', updateTickers: 'updateTickers' }),
     ...mapActions('currency', ['selectCurrency']),
     convert (usdValue) { return this.$store.getters['currency/convert'](usdValue) },
+    reloadRates () { return this.$store.dispatch('currency/loadRates', { force: true }) },
     findMarket (symbol) { return this.symbols.find(item => item.symbol === symbol) || null },
     /** Falls back to the default when the query string names an unknown or untradable pair. */
     resolveSymbol (candidate, fallback) {
@@ -207,4 +227,15 @@ export default {
   width: 42px;
 }
 .comparison-view__swap:hover { border-color: $color-brand; color: $color-brand; }
+.comparison-view__currency { align-items: flex-end; display: flex; flex-direction: column; gap: $space-2; }
+.comparison-view__currency-error {
+  align-items: center;
+  color: $color-negative;
+  display: flex;
+  font-size: $font-size-xs;
+  gap: $space-1;
+  margin: 0;
+  text-align: right;
+}
+.comparison-view__currency-error .button-text { padding: 0 0 0 $space-1; }
 </style>

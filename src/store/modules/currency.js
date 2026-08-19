@@ -26,24 +26,38 @@ export default {
     setError (state, error) { state.error = error }
   },
   getters: {
-    rate: state => state.rates[state.selectedCurrency] || 1,
+    hasRate: state => {
+      const value = Number(state.rates[state.selectedCurrency])
+      return Number.isFinite(value) && value > 0
+    },
     /**
-     * USD -> selected currency. Values originate as USDT, which the app treats as USD;
+     * The code prices are actually displayed in. Falls back to USD whenever the selected
+     * currency has no rate — a failed fetch, or a persisted selection restored before the
+     * rates arrive — so the label can never disagree with the arithmetic below.
+     */
+    effectiveCurrency: (state, getters) => (getters.hasRate ? state.selectedCurrency : DEFAULT_CURRENCY),
+    rate: (state, getters) => Number(state.rates[getters.effectiveCurrency]) || 1,
+    /**
+     * USD -> effective currency. Values originate as USDT, which the app treats as USD;
      * see CURRENCY_OPTIONS. Non-numeric input passes through so formatters can show a dash.
      */
     convert: (state, getters) => usdValue => {
       const numericValue = Number(usdValue)
       return Number.isFinite(numericValue) ? numericValue * getters.rate : usdValue
     },
-    isConverted: state => state.selectedCurrency !== DEFAULT_CURRENCY
+    isConverted: (state, getters) => getters.effectiveCurrency !== DEFAULT_CURRENCY,
+    /** True only while the user's pick is being ignored for want of a rate. */
+    isRateMissing: (state, getters) => state.selectedCurrency !== DEFAULT_CURRENCY && !getters.hasRate
   },
   actions: {
-    async loadRates ({ commit }) {
+    /** `force` skips the cache so the retry affordance can actually re-hit the provider. */
+    async loadRates ({ commit }, { force = false } = {}) {
       commit('setSelectedCurrency', loadSelectedCurrency())
 
-      const cachedRates = loadCachedRates()
+      const cachedRates = force ? null : loadCachedRates()
       if (cachedRates) {
         commit('setRates', cachedRates)
+        commit('setError', null)
         return
       }
 
